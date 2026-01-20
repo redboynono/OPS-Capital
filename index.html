@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPS Terminal | Dark Forest</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        ops: {
+                            bg: '#0B0F19',
+                            card: '#151C2C',
+                            panel: '#0F1626',
+                            primary: '#10B981',
+                            danger: '#EF4444',
+                            accent: '#3B82F6',
+                            text: '#E2E8F0',
+                            muted: '#94A3B8'
+                        }
+                    },
+                    keyframes: {
+                        breathe: {
+                            '0%, 100%': { opacity: 0.35 },
+                            '50%': { opacity: 0.7 }
+                        },
+                        rowflash: {
+                            '0%': { backgroundColor: 'rgba(251, 191, 36, 0.0)' },
+                            '30%': { backgroundColor: 'rgba(251, 191, 36, 0.25)' },
+                            '60%': { backgroundColor: 'rgba(251, 191, 36, 0.05)' },
+                            '100%': { backgroundColor: 'rgba(251, 191, 36, 0.0)' }
+                        },
+                        scanline: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' }
+                        }
+                    },
+                    animation: {
+                        'breathe-slow': 'breathe 3.8s ease-in-out infinite',
+                        'row-flash': 'rowflash 2.4s ease-in-out',
+                        'scanline': 'scanline 6s linear infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="assets/terminal.css">
+</head>
+<body class="min-h-screen overflow-hidden font-sans bg-ops-bg text-ops-text">
+    <div class="absolute inset-0 grid-bg pointer-events-none"></div>
+    <div class="absolute inset-0 pointer-events-none opacity-20 animate-scanline bg-gradient-to-b from-transparent via-ops-accent/30 to-transparent"></div>
+
+    <!-- Mobile Read-only Mode -->
+    <section class="md:hidden relative z-10 p-5 space-y-4">
+        <header class="flex items-center justify-between">
+            <div class="flex items-center gap-2 font-mono text-sm">
+                <div class="w-2 h-2 rounded-full bg-ops-primary"></div>
+                READ-ONLY MODE
+            </div>
+            <div class="text-xs text-ops-muted font-mono">trade.opscapital.com</div>
+        </header>
+        <div class="bg-ops-card border border-slate-800 rounded-lg p-4 space-y-3">
+            <div class="text-xs text-ops-muted font-mono uppercase">Account Snapshot</div>
+            <div class="flex items-baseline justify-between">
+                <span id="mobileAum" class="text-2xl font-mono font-bold">$128,400,220</span>
+                <span id="mobilePnl" class="text-sm text-ops-primary font-mono">+1.84% TODAY</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-ops-muted">Risk Alert</span>
+                <span id="mobileRisk" class="text-ops-danger font-mono">VaR 2.9% (High)</span>
+            </div>
+        </div>
+        <button id="mobileStopBtn" class="w-full bg-ops-danger text-white font-bold py-4 rounded-lg tracking-widest">
+            STOP ALL TRADING
+        </button>
+        <p class="text-xs text-ops-muted font-mono">
+            Mobile access is read-only. Use desktop for execution.
+        </p>
+    </section>
+
+    <!-- Desktop Terminal -->
+    <div id="terminalRoot" class="hidden md:flex flex-col h-screen relative z-10">
+        <!-- Top Bar / Commander Dashboard -->
+        <header class="market-dim px-6 py-4 border-b border-slate-800 bg-ops-panel/90 backdrop-blur-sm">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 bg-ops-primary text-ops-bg rounded-sm flex items-center justify-center font-mono font-bold">OPS</div>
+                    <div>
+                        <div class="text-lg font-semibold tracking-widest">OPS TERMINAL</div>
+                        <div class="text-xs text-ops-muted font-mono">DARK FOREST // KEYBOARD FIRST</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6 text-xs font-mono text-ops-muted">
+                    <div>ALPACA API: <span id="alpacaStatus" class="text-ops-primary">CONNECTED</span></div>
+                    <div>WS LATENCY: <span id="wsLatency" class="text-ops-primary">12ms</span></div>
+                    <div>BUYING POWER: <span id="buyingPower" class="text-ops-primary">$100,000 (4x)</span></div>
+                    <div>DATA FEED: <span id="dataFeedStatus" class="text-ops-primary">CONNECTED (24ms)</span></div>
+                    <div>BROKER: <span class="text-ops-primary">IBKR API OK</span></div>
+                    <div>ALGO: <span id="algoStatus" class="text-amber-400">3 ACTIVE / 1 PAUSED</span></div>
+                </div>
+            </div>
+            <div class="mt-4 grid grid-cols-12 gap-4">
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">AUM</div>
+                    <div id="aumValue" class="text-3xl font-mono font-bold">$128,400,220</div>
+                    <div class="text-xs text-ops-muted font-mono mt-2">NET LIQUIDITY</div>
+                </div>
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Unrealized P&amp;L</div>
+                    <div id="pnlValue" class="text-3xl font-mono font-bold text-ops-primary">+$1,482,120</div>
+                    <div class="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div id="pnlPulse" class="h-full bg-ops-primary animate-breathe-slow w-2/3"></div>
+                    </div>
+                </div>
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Cash Ratio</div>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div id="cashRatioValue" class="text-2xl font-mono font-bold">30%</div>
+                        <div class="text-xs text-ops-muted font-mono">RESERVE</div>
+                    </div>
+                    <div class="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div id="cashRatioBar" class="h-full bg-ops-accent w-[30%]"></div>
+                    </div>
+                </div>
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Risk Gauge</div>
+                    <div class="flex items-center justify-between mt-2">
+                        <div>
+                            <div class="text-sm text-ops-muted font-mono">VaR</div>
+                            <div id="varValue" class="text-xl font-mono font-bold text-ops-danger">$3.2M</div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-ops-muted font-mono">Exposure</div>
+                            <div id="exposureValue" class="text-xl font-mono font-bold text-ops-accent">120%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="market-dim flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
+            <!-- Market Scanner -->
+            <section class="col-span-8 bg-ops-card border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                    <div>
+                        <div class="text-sm font-semibold tracking-wider">MARKET SCANNER</div>
+                        <div class="text-xs text-ops-muted font-mono">SONAR PING // GRID MODE</div>
+                    </div>
+                    <div class="text-xs text-ops-muted font-mono">RIGHT CLICK: EXECUTE / BLACKLIST / LOG</div>
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-sm font-mono">
+                        <thead class="sticky top-0 bg-ops-panel text-ops-muted text-xs">
+                            <tr>
+                                <th class="text-left px-4 py-2">Ticker</th>
+                                <th class="text-right px-4 py-2">Last</th>
+                                <th class="text-right px-4 py-2">Chg%</th>
+                                <th class="text-center px-4 py-2">Signal</th>
+                                <th class="text-right px-4 py-2">Score</th>
+                                <th class="text-right px-4 py-2">Vol/MA</th>
+                            </tr>
+                        </thead>
+                        <tbody id="marketTableBody" class="divide-y divide-slate-900"></tbody>
+                    </table>
+                </div>
+                <div class="px-4 py-2 border-t border-slate-800 text-xs font-mono text-ops-muted flex justify-between">
+                    <span id="scannerAlert">ALERT: NEW SIGNAL = "STRONG BUY"</span>
+                    <span id="scannerLatency">SIP STREAMING // MULTI-ASSET VIEW</span>
+                </div>
+            </section>
+
+            <!-- Algo Engine -->
+            <section class="col-span-4 bg-ops-card border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <div class="text-sm font-semibold tracking-wider">ALGO ENGINE</div>
+                    <div class="text-xs text-ops-muted font-mono">PYTHON CONTAINERS // LIVE</div>
+                </div>
+                <div id="strategyList" class="p-4 space-y-3"></div>
+                <div class="flex-1 px-4 pb-4">
+                    <div id="logStream" class="bg-black/30 border border-slate-800 rounded-md p-3 text-xs font-mono h-40 overflow-auto log-glow"></div>
+                </div>
+                <div class="px-4 pb-4 flex gap-3">
+                    <button id="pauseAllBtn" class="flex-1 border border-slate-700 text-ops-text font-mono text-sm py-2 rounded-md hover:border-ops-accent">
+                        SPACE: PAUSE ALL
+                    </button>
+                    <button id="liquidateAllBtn" class="flex-1 bg-ops-danger text-white font-mono text-sm py-2 rounded-md hover:brightness-110">
+                        LIQUIDATE ALL
+                    </button>
+                </div>
+            </section>
+
+            <!-- Portfolio & OMS -->
+            <section class="col-span-4 bg-ops-card border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <div class="text-sm font-semibold tracking-wider">PORTFOLIO &amp; OMS</div>
+                    <div class="text-xs text-ops-muted font-mono">EXECUTION DESK</div>
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-sm font-mono">
+                        <thead class="bg-ops-panel text-ops-muted text-xs">
+                            <tr>
+                                <th class="text-left px-4 py-2">Asset</th>
+                                <th class="text-right px-4 py-2">Cost</th>
+                                <th class="text-right px-4 py-2">Last</th>
+                                <th class="text-right px-4 py-2">PnL</th>
+                                <th class="text-right px-4 py-2">Stop</th>
+                            </tr>
+                        </thead>
+                        <tbody id="positionsTableBody" class="divide-y divide-slate-900"></tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-slate-800 space-y-3">
+                    <div class="text-xs text-ops-muted font-mono">MANUAL ENTRY</div>
+                    <div class="grid grid-cols-3 gap-2 text-sm font-mono">
+                        <input id="manualSymbol" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text" placeholder="Ticker">
+                        <input id="manualQty" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text" placeholder="Qty">
+                        <select id="manualSide" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text">
+                            <option>BUY</option>
+                            <option>SELL</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="buyMaxBtn" class="bg-ops-primary text-ops-bg font-bold py-2 rounded-md">BUY MAX</button>
+                        <button id="sellHalfBtn" class="border border-slate-700 text-ops-text font-bold py-2 rounded-md">SELL HALF</button>
+                    </div>
+                    <div id="pdtLockMsg" class="text-xs text-ops-danger font-mono hidden">PDT LOCKED: NO DAY TRADES REMAINING</div>
+                    <div class="text-xs text-ops-muted font-mono">CTRL+B TO FOCUS BUY</div>
+                </div>
+            </section>
+
+            <!-- Connectivity / Compliance / CEO Modules -->
+            <section class="col-span-8 bg-ops-panel border border-slate-800 rounded-lg p-4 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Connectivity Status</div>
+                    <div id="marketStatusBadge" class="text-xs font-mono text-ops-danger bg-ops-card border border-slate-800 px-3 py-1 rounded-md cursor-pointer">
+                        MARKET CLOSED - QUEUED
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-3 text-xs font-mono">
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">ALPACA API</div>
+                        <div id="alpacaHealth" class="text-ops-primary mt-1">CONNECTED</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">WS LATENCY</div>
+                        <div id="latencyValue" class="text-ops-primary mt-1">12ms</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">BUYING POWER</div>
+                        <div id="buyingPowerMini" class="text-ops-primary mt-1">$100,000 (4x)</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">DAY TRADES</div>
+                        <div id="dayTrades" class="text-ops-danger mt-1">0 REMAINING</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-4">
+                        <div class="text-xs text-ops-muted font-mono uppercase">War Game Mode</div>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="text-sm font-mono">PAPER TRADING</div>
+                            <div id="warGameStatus" class="text-xs font-mono text-amber-400">ON</div>
+                        </div>
+                        <button id="warGameToggleBtn" class="mt-3 w-full border border-slate-700 text-ops-text text-xs font-mono py-2 rounded-md">
+                            TOGGLE WAR GAME MODE
+                        </button>
+                        <div class="text-xs text-ops-muted mt-2 font-mono">2 WEEKS PROFIT REQUIRED FOR LIVE</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-4">
+                        <div class="text-xs text-ops-muted font-mono uppercase">Sniper Engine</div>
+                        <div class="text-sm font-mono mt-2">OTO/OCO BRACKET ORDERS</div>
+                        <div class="text-xs text-ops-muted mt-2 font-mono">FRACTIONAL 0.0001 SHARES</div>
+                    </div>
+                </div>
+                <div class="bg-ops-card border border-slate-800 rounded-md p-4">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs text-ops-muted font-mono uppercase">Vault Analytics</div>
+                        <div class="text-xs font-mono text-ops-muted">SHARPE <span id="sharpeRatio" class="text-ops-primary">--</span></div>
+                    </div>
+                    <div class="mt-2">
+                        <svg id="equitySpark" viewBox="0 0 360 80" class="w-full h-20">
+                            <polyline id="equityLine" fill="none" stroke="#10B981" stroke-width="2" points=""></polyline>
+                        </svg>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between text-xs font-mono text-ops-muted">
+                        <span>MAX DD: <span id="maxDrawdown" class="text-ops-danger">--</span></span>
+                        <span>HORIZON: <span id="historyHorizon">30D</span></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Hotkeys / Sound / Order Preview -->
+            <section class="col-span-4 bg-ops-panel border border-slate-800 rounded-lg p-4 space-y-4">
+                <div>
+                    <div class="text-xs text-ops-muted font-mono uppercase">Hotkeys &amp; Sound Design</div>
+                    <div class="mt-2 grid grid-cols-2 gap-3 text-sm font-mono">
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-accent">F1</div>
+                            <div class="text-xs text-ops-muted mt-1">Cockpit View</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-primary">SPACE</div>
+                            <div class="text-xs text-ops-muted mt-1">Emergency Pause</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-danger">ESC</div>
+                            <div class="text-xs text-ops-muted mt-1">Cancel Order</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-primary">Cha-Ching</div>
+                            <div class="text-xs text-ops-muted mt-1">Fill Confirmed</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-accent">Sonar Ping</div>
+                            <div class="text-xs text-ops-muted mt-1">High Score Target</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-danger">Buzz</div>
+                            <div class="text-xs text-ops-muted mt-1">Risk / Disconnect</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-black/40 border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Order Preview</div>
+                    <div class="text-sm font-mono mt-2 space-y-1">
+                        <div>Side: <span id="previewSide" class="text-ops-primary">BUY</span></div>
+                        <div>Symbol: <span id="previewSymbol">TSLA</span></div>
+                        <div>Qty: <span id="previewQty">14.532</span> Shares (Fractional)</div>
+                        <div>Take Profit: @ <span id="previewTakeProfit">$280.00</span> (GTC)</div>
+                        <div>Stop Loss: @ <span id="previewStopLoss">$240.00</span> (GTC)</div>
+                        <div class="pt-2">Est. Total: <span id="previewEstTotal">$3,800.00</span></div>
+                        <div>Short Locate: <span id="shortLocate" class="text-ops-muted">N/A</span></div>
+                    </div>
+                    <button id="executeStrategyBtn" class="mt-3 w-full bg-ops-accent text-white font-mono text-sm py-2 rounded-md">
+                        EXECUTE STRATEGY
+                    </button>
+                </div>
+                <div class="bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Research Lab</div>
+                    <div class="mt-2 grid grid-cols-3 gap-2 text-xs font-mono">
+                        <input id="labSymbol" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text" placeholder="Symbol">
+                        <select id="labTimeframe" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text">
+                            <option value="1Min">1Min</option>
+                            <option value="5Min">5Min</option>
+                            <option value="15Min">15Min</option>
+                            <option value="1H">1H</option>
+                            <option value="1D" selected>1D</option>
+                        </select>
+                        <button id="labFetchBtn" class="bg-ops-accent text-white rounded-md py-2">FETCH</button>
+                    </div>
+                    <div class="mt-3">
+                        <svg id="labSpark" viewBox="0 0 360 100" class="w-full h-24">
+                            <polyline id="labLine" fill="none" stroke="#3B82F6" stroke-width="2" points=""></polyline>
+                        </svg>
+                    </div>
+                    <div class="mt-2 text-xs font-mono text-ops-muted">
+                        BARS: <span id="labCount">0</span>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="market-dim px-6 py-3 border-t border-slate-800 text-xs text-ops-muted font-mono flex items-center justify-between">
+            <span>OPS TERMINAL // INTERNAL USE ONLY // 2FA REQUIRED</span>
+            <span id="lastSync">LAST SYNC 20:14:12 UTC+8</span>
+        </footer>
+    </div>
+
+    <!-- Order Confirmation Modal -->
+    <div id="orderModal" class="hidden fixed inset-0 z-50 items-center justify-center">
+        <div class="absolute inset-0 modal-backdrop"></div>
+        <div class="relative bg-ops-card border border-slate-700 rounded-lg p-6 w-[420px] font-mono">
+            <div class="text-xs text-ops-muted uppercase">Order Preview</div>
+            <div class="text-sm mt-3 space-y-1">
+                <div>Side: <span id="modalSide" class="text-ops-primary">BUY</span></div>
+                <div>Symbol: <span id="modalSymbol">TSLA</span></div>
+                <div>Qty: <span id="modalQty">14.532</span> Shares (Fractional)</div>
+                <div>Take Profit: @ <span id="modalTakeProfit">$280.00</span> (GTC)</div>
+                <div>Stop Loss: @ <span id="modalStopLoss">$240.00</span> (GTC)</div>
+                <div class="pt-2">Est. Total: <span id="modalEstTotal">$3,800.00</span></div>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
+                <button id="cancelOrderBtn" class="border border-slate-700 text-ops-text py-2 rounded-md">CANCEL</button>
+                <button id="confirmOrderBtn" class="bg-ops-accent text-white py-2 rounded-md">EXECUTE STRATEGY</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Context Menu -->
+    <div id="scanContextMenu" class="hidden fixed z-50 bg-ops-panel border border-slate-700 rounded-md text-xs font-mono">
+        <button data-action="execute" class="block w-full text-left px-4 py-2 hover:bg-slate-800">EXECUTE NOW</button>
+        <button data-action="blacklist" class="block w-full text-left px-4 py-2 hover:bg-slate-800">ADD TO BLACKLIST</button>
+        <button data-action="log" class="block w-full text-left px-4 py-2 hover:bg-slate-800">VIEW STRATEGY LOG</button>
+    </div>
+
+    <script src="assets/mock-data.js"></script>
+    <script src="assets/terminal.js"></script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPS Terminal | Dark Forest</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        ops: {
+                            bg: '#0B0F19',
+                            card: '#151C2C',
+                            panel: '#0F1626',
+                            primary: '#10B981',
+                            danger: '#EF4444',
+                            accent: '#3B82F6',
+                            text: '#E2E8F0',
+                            muted: '#94A3B8'
+                        }
+                    },
+                    keyframes: {
+                        breathe: {
+                            '0%, 100%': { opacity: 0.35 },
+                            '50%': { opacity: 0.7 }
+                        },
+                        rowflash: {
+                            '0%': { backgroundColor: 'rgba(251, 191, 36, 0.0)' },
+                            '30%': { backgroundColor: 'rgba(251, 191, 36, 0.25)' },
+                            '60%': { backgroundColor: 'rgba(251, 191, 36, 0.05)' },
+                            '100%': { backgroundColor: 'rgba(251, 191, 36, 0.0)' }
+                        },
+                        scanline: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' }
+                        }
+                    },
+                    animation: {
+                        'breathe-slow': 'breathe 3.8s ease-in-out infinite',
+                        'row-flash': 'rowflash 2.4s ease-in-out infinite',
+                        'scanline': 'scanline 6s linear infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="assets/terminal.css">
+</head>
+<body class="min-h-screen overflow-hidden font-sans">
+    <div class="absolute inset-0 grid-bg pointer-events-none"></div>
+    <div class="absolute inset-0 pointer-events-none opacity-20 animate-scanline bg-gradient-to-b from-transparent via-ops-accent/30 to-transparent"></div>
+
+    <!-- Mobile Read-only Mode -->
+    <section class="md:hidden relative z-10 p-5 space-y-4">
+        <header class="flex items-center justify-between">
+            <div class="flex items-center gap-2 font-mono text-sm">
+                <div class="w-2 h-2 rounded-full bg-ops-primary"></div>
+                READ-ONLY MODE
+            </div>
+            <div class="text-xs text-ops-muted font-mono">trade.opscapital.com</div>
+        </header>
+        <div class="bg-ops-card border border-slate-800 rounded-lg p-4 space-y-3">
+            <div class="text-xs text-ops-muted font-mono uppercase">Account Snapshot</div>
+            <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-mono font-bold">$128,400,220</span>
+                <span class="text-sm text-ops-primary font-mono">+1.84% TODAY</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+                <span class="text-ops-muted">Risk Alert</span>
+                <span class="text-ops-danger font-mono">VaR 2.9% (High)</span>
+            </div>
+        </div>
+        <button class="w-full bg-ops-danger text-white font-bold py-4 rounded-lg tracking-widest">
+            STOP ALL TRADING
+        </button>
+        <p class="text-xs text-ops-muted font-mono">
+            Mobile access is read-only. Use desktop for execution.
+        </p>
+    </section>
+
+    <!-- Desktop Terminal -->
+    <div class="hidden md:flex flex-col h-screen relative z-10">
+        <!-- Top Bar / Commander Dashboard -->
+        <header class="px-6 py-4 border-b border-slate-800 bg-ops-panel/90 backdrop-blur-sm">
+            <div class="flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 bg-ops-primary text-ops-bg rounded-sm flex items-center justify-center font-mono font-bold">OPS</div>
+                    <div>
+                        <div class="text-lg font-semibold tracking-widest">OPS TERMINAL</div>
+                        <div class="text-xs text-ops-muted font-mono">DARK FOREST // KEYBOARD FIRST</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-6 text-xs font-mono text-ops-muted">
+                    <div>ALPACA API: <span id="alpacaStatus" class="text-ops-primary">CONNECTED</span></div>
+                    <div>WS LATENCY: <span id="wsLatency" class="text-ops-primary">12ms</span></div>
+                    <div>BUYING POWER: <span id="buyingPower" class="text-ops-primary">$100,000 (4x)</span></div>
+                    <div>DATA FEED: <span class="text-ops-primary">CONNECTED (24ms)</span></div>
+                    <div>BROKER: <span class="text-ops-primary">IBKR API OK</span></div>
+                    <div>ALGO: <span class="text-amber-400">3 ACTIVE / 1 PAUSED</span></div>
+                </div>
+            </div>
+            <div class="mt-4 grid grid-cols-12 gap-4">
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">AUM</div>
+                    <div class="text-3xl font-mono font-bold">$128,400,220</div>
+                    <div class="text-xs text-ops-muted font-mono mt-2">NET LIQUIDITY</div>
+                </div>
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Unrealized P&amp;L</div>
+                    <div class="text-3xl font-mono font-bold text-ops-primary">+$1,482,120</div>
+                    <div class="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-ops-primary animate-breathe-slow w-2/3"></div>
+                    </div>
+                </div>
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Cash Ratio</div>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="text-2xl font-mono font-bold">30%</div>
+                        <div class="text-xs text-ops-muted font-mono">RESERVE</div>
+                    </div>
+                    <div class="mt-3 h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div class="h-full bg-ops-accent w-[30%]"></div>
+                    </div>
+                </div>
+                <div class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Risk Gauge</div>
+                    <div class="flex items-center justify-between mt-2">
+                        <div>
+                            <div class="text-sm text-ops-muted font-mono">VaR</div>
+                            <div class="text-xl font-mono font-bold text-ops-danger">$3.2M</div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-ops-muted font-mono">Exposure</div>
+                            <div class="text-xl font-mono font-bold text-ops-accent">120%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <main class="flex-1 grid grid-cols-12 gap-4 p-4 overflow-hidden">
+            <!-- Market Scanner -->
+            <section class="col-span-8 bg-ops-card border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+                    <div>
+                        <div class="text-sm font-semibold tracking-wider">MARKET SCANNER</div>
+                        <div class="text-xs text-ops-muted font-mono">SONAR PING // GRID MODE</div>
+                    </div>
+                    <div class="text-xs text-ops-muted font-mono">RIGHT CLICK: EXECUTE / BLACKLIST / LOG</div>
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-sm font-mono">
+                        <thead class="sticky top-0 bg-ops-panel text-ops-muted text-xs">
+                            <tr>
+                                <th class="text-left px-4 py-2">Ticker</th>
+                                <th class="text-right px-4 py-2">Last</th>
+                                <th class="text-right px-4 py-2">Chg%</th>
+                                <th class="text-center px-4 py-2">Signal</th>
+                                <th class="text-right px-4 py-2">Score</th>
+                                <th class="text-right px-4 py-2">Vol/MA</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-900">
+                            <tr class="animate-row-flash">
+                                <td class="px-4 py-3 text-ops-primary">NVDA</td>
+                                <td class="px-4 py-3 text-right">$902.14</td>
+                                <td class="px-4 py-3 text-right text-ops-primary">+3.42%</td>
+                                <td class="px-4 py-3 text-center text-amber-300">STRONG BUY</td>
+                                <td class="px-4 py-3 text-right">92/100</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">4.8x</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">AAPL</td>
+                                <td class="px-4 py-3 text-right">$192.38</td>
+                                <td class="px-4 py-3 text-right text-ops-primary">+0.82%</td>
+                                <td class="px-4 py-3 text-center text-ops-muted">WAIT</td>
+                                <td class="px-4 py-3 text-right">71/100</td>
+                                <td class="px-4 py-3 text-right">1.2x</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">BTC/USD</td>
+                                <td class="px-4 py-3 text-right">$64,218.00</td>
+                                <td class="px-4 py-3 text-right text-ops-primary">+1.18%</td>
+                                <td class="px-4 py-3 text-center text-ops-muted">WAIT</td>
+                                <td class="px-4 py-3 text-right">69/100</td>
+                                <td class="px-4 py-3 text-right">2.2x</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">TSLA</td>
+                                <td class="px-4 py-3 text-right">$238.09</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">-2.14%</td>
+                                <td class="px-4 py-3 text-center text-ops-danger">SELL</td>
+                                <td class="px-4 py-3 text-right">39/100</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">3.1x</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">MSFT</td>
+                                <td class="px-4 py-3 text-right">$402.01</td>
+                                <td class="px-4 py-3 text-right text-ops-primary">+1.06%</td>
+                                <td class="px-4 py-3 text-center text-ops-muted">WAIT</td>
+                                <td class="px-4 py-3 text-right">66/100</td>
+                                <td class="px-4 py-3 text-right">0.9x</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">AMD</td>
+                                <td class="px-4 py-3 text-right">$168.44</td>
+                                <td class="px-4 py-3 text-right text-ops-primary">+2.41%</td>
+                                <td class="px-4 py-3 text-center text-amber-300">BUY</td>
+                                <td class="px-4 py-3 text-right">84/100</td>
+                                <td class="px-4 py-3 text-right">1.7x</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">META</td>
+                                <td class="px-4 py-3 text-right">$488.61</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">-0.74%</td>
+                                <td class="px-4 py-3 text-center text-ops-muted">WAIT</td>
+                                <td class="px-4 py-3 text-right">58/100</td>
+                                <td class="px-4 py-3 text-right">1.0x</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="px-4 py-2 border-t border-slate-800 text-xs font-mono text-ops-muted flex justify-between">
+                    <span>ALERT: NEW SIGNAL = "STRONG BUY" (CHA-CHING)</span>
+                    <span>SIP STREAMING // MULTI-ASSET VIEW</span>
+                </div>
+            </section>
+
+            <!-- Algo Engine -->
+            <section class="col-span-4 bg-ops-card border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <div class="text-sm font-semibold tracking-wider">ALGO ENGINE</div>
+                    <div class="text-xs text-ops-muted font-mono">PYTHON CONTAINERS // LIVE</div>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="bg-ops-panel border border-slate-800 rounded-md p-3 flex items-center justify-between">
+                        <div>
+                            <div class="font-mono text-sm">Strategy_Tech_Momentum_v2</div>
+                            <div class="text-xs text-ops-muted font-mono">PnL +$482,210 | Pos 14</div>
+                        </div>
+                        <span class="text-xs font-mono text-ops-primary">RUNNING</span>
+                    </div>
+                    <div class="bg-ops-panel border border-slate-800 rounded-md p-3 flex items-center justify-between">
+                        <div>
+                            <div class="font-mono text-sm">Strategy_Defensive_Alpha</div>
+                            <div class="text-xs text-ops-muted font-mono">PnL +$91,120 | Pos 6</div>
+                        </div>
+                        <span class="text-xs font-mono text-amber-400">PAUSED</span>
+                    </div>
+                    <div class="bg-ops-panel border border-slate-800 rounded-md p-3 flex items-center justify-between">
+                        <div>
+                            <div class="font-mono text-sm">Strategy_Crypto_Liq</div>
+                            <div class="text-xs text-ops-muted font-mono">PnL -$14,802 | Pos 3</div>
+                        </div>
+                        <span class="text-xs font-mono text-ops-primary">RUNNING</span>
+                    </div>
+                </div>
+                <div class="flex-1 px-4 pb-4">
+                    <div class="bg-black/30 border border-slate-800 rounded-md p-3 text-xs font-mono h-40 overflow-auto log-glow">
+                        <div>[10:00:01] INFO: Scanning AAPL... RSI=72, Overbought.</div>
+                        <div>[10:00:02] WARN: TSLA Volatility Spike detected!</div>
+                        <div>[10:00:04] EXEC: Placing ORDER -&gt; BUY 100 NVDA @ MKT</div>
+                        <div>[10:00:05] INFO: Risk check passed. Exposure 118%.</div>
+                        <div>[10:00:07] ALERT: Spread widening in META.</div>
+                        <div>[10:00:09] INFO: Hedge update queued.</div>
+                    </div>
+                </div>
+                <div class="px-4 pb-4 flex gap-3">
+                    <button id="pauseAllBtn" class="flex-1 border border-slate-700 text-ops-text font-mono text-sm py-2 rounded-md hover:border-ops-accent">
+                        SPACE: PAUSE ALL
+                    </button>
+                    <button id="liquidateAllBtn" class="flex-1 bg-ops-danger text-white font-mono text-sm py-2 rounded-md hover:brightness-110">
+                        LIQUIDATE ALL
+                    </button>
+                </div>
+            </section>
+
+            <!-- Portfolio & OMS -->
+            <section class="col-span-4 bg-ops-card border border-slate-800 rounded-lg flex flex-col overflow-hidden">
+                <div class="px-4 py-3 border-b border-slate-800">
+                    <div class="text-sm font-semibold tracking-wider">PORTFOLIO &amp; OMS</div>
+                    <div class="text-xs text-ops-muted font-mono">EXECUTION DESK</div>
+                </div>
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-sm font-mono">
+                        <thead class="bg-ops-panel text-ops-muted text-xs">
+                            <tr>
+                                <th class="text-left px-4 py-2">Asset</th>
+                                <th class="text-right px-4 py-2">Cost</th>
+                                <th class="text-right px-4 py-2">Last</th>
+                                <th class="text-right px-4 py-2">PnL</th>
+                                <th class="text-right px-4 py-2">Stop</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-900">
+                            <tr>
+                                <td class="px-4 py-3">NVDA</td>
+                                <td class="px-4 py-3 text-right">$842.10</td>
+                                <td class="px-4 py-3 text-right">$902.14</td>
+                                <td class="px-4 py-3 text-right text-ops-primary">+7.1%</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">860.00</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">AAPL</td>
+                                <td class="px-4 py-3 text-right">$186.00</td>
+                                <td class="px-4 py-3 text-right">$192.38</td>
+                                <td class="px-4 py-3 text-right text-ops-primary">+3.4%</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">180.50</td>
+                            </tr>
+                            <tr>
+                                <td class="px-4 py-3">TSLA</td>
+                                <td class="px-4 py-3 text-right">$246.90</td>
+                                <td class="px-4 py-3 text-right">$238.09</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">-3.6%</td>
+                                <td class="px-4 py-3 text-right text-ops-danger">232.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 border-t border-slate-800 space-y-3">
+                    <div class="text-xs text-ops-muted font-mono">MANUAL ENTRY</div>
+                    <div class="grid grid-cols-3 gap-2 text-sm font-mono">
+                        <input id="manualSymbol" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text" placeholder="Ticker">
+                        <input id="manualQty" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text" placeholder="Qty">
+                        <select id="manualSide" class="bg-ops-panel border border-slate-700 rounded-md px-3 py-2 text-ops-text">
+                            <option>BUY</option>
+                            <option>SELL</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="buyMaxBtn" class="bg-ops-primary text-ops-bg font-bold py-2 rounded-md">BUY MAX</button>
+                        <button id="sellHalfBtn" class="border border-slate-700 text-ops-text font-bold py-2 rounded-md">SELL HALF</button>
+                    </div>
+                    <div id="pdtLockMsg" class="text-xs text-ops-danger font-mono hidden">PDT LOCKED: NO DAY TRADES REMAINING</div>
+                    <div class="text-xs text-ops-muted font-mono">CTRL+B TO FOCUS BUY</div>
+                </div>
+            </section>
+
+            <!-- Connectivity / Compliance / CEO Modules -->
+            <section class="col-span-8 bg-ops-panel border border-slate-800 rounded-lg p-4 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Connectivity Status</div>
+                    <div id="marketStatusBadge" class="text-xs font-mono text-ops-danger bg-ops-card border border-slate-800 px-3 py-1 rounded-md">
+                        MARKET CLOSED - QUEUED
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-3 text-xs font-mono">
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">ALPACA API</div>
+                        <div class="text-ops-primary mt-1">CONNECTED</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">WS LATENCY</div>
+                        <div class="text-ops-primary mt-1">12ms</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">BUYING POWER</div>
+                        <div class="text-ops-primary mt-1">$100,000 (4x)</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                        <div class="text-ops-muted">DAY TRADES</div>
+                        <div id="dayTrades" class="text-ops-danger mt-1">0 REMAINING</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-4">
+                        <div class="text-xs text-ops-muted font-mono uppercase">War Game Mode</div>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="text-sm font-mono">PAPER TRADING</div>
+                            <div id="warGameStatus" class="text-xs font-mono text-amber-400">ON</div>
+                        </div>
+                        <button id="warGameToggleBtn" class="mt-3 w-full border border-slate-700 text-ops-text text-xs font-mono py-2 rounded-md">
+                            TOGGLE WAR GAME MODE
+                        </button>
+                        <div class="text-xs text-ops-muted mt-2 font-mono">2 WEEKS PROFIT REQUIRED FOR LIVE</div>
+                    </div>
+                    <div class="bg-ops-card border border-slate-800 rounded-md p-4">
+                        <div class="text-xs text-ops-muted font-mono uppercase">Sniper Engine</div>
+                        <div class="text-sm font-mono mt-2">OTO/OCO BRACKET ORDERS</div>
+                        <div class="text-xs text-ops-muted mt-2 font-mono">FRACTIONAL 0.0001 SHARES</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Hotkeys / Sound / Order Preview -->
+            <section class="col-span-4 bg-ops-panel border border-slate-800 rounded-lg p-4 space-y-4">
+                <div>
+                    <div class="text-xs text-ops-muted font-mono uppercase">Hotkeys &amp; Sound Design</div>
+                    <div class="mt-2 grid grid-cols-2 gap-3 text-sm font-mono">
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-accent">F1</div>
+                            <div class="text-xs text-ops-muted mt-1">驾驶舱视图</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-primary">SPACE</div>
+                            <div class="text-xs text-ops-muted mt-1">紧急暂停所有算法</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-danger">ESC</div>
+                            <div class="text-xs text-ops-muted mt-1">取消当前订单</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-primary">Cha-Ching</div>
+                            <div class="text-xs text-ops-muted mt-1">成交提示音</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-accent">Sonar Ping</div>
+                            <div class="text-xs text-ops-muted mt-1">高分标的扫描</div>
+                        </div>
+                        <div class="bg-ops-card border border-slate-800 rounded-md p-3">
+                            <div class="text-ops-danger">Buzz</div>
+                            <div class="text-xs text-ops-muted mt-1">风控/断连警报</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-black/40 border border-slate-800 rounded-lg p-4">
+                    <div class="text-xs text-ops-muted font-mono uppercase">Order Preview</div>
+                    <div class="text-sm font-mono mt-2 space-y-1">
+                        <div>Side: <span id="previewSide" class="text-ops-primary">BUY</span></div>
+                        <div>Symbol: <span id="previewSymbol">TSLA</span></div>
+                        <div>Qty: <span id="previewQty">14.532</span> Shares (Fractional)</div>
+                        <div>Take Profit: @ <span id="previewTakeProfit">$280.00</span> (GTC)</div>
+                        <div>Stop Loss: @ <span id="previewStopLoss">$240.00</span> (GTC)</div>
+                        <div class="pt-2">Est. Total: <span id="previewEstTotal">$3,800.00</span></div>
+                    </div>
+                    <button id="executeStrategyBtn" class="mt-3 w-full bg-ops-accent text-white font-mono text-sm py-2 rounded-md">
+                        EXECUTE STRATEGY
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="px-6 py-3 border-t border-slate-800 text-xs text-ops-muted font-mono flex items-center justify-between">
+            <span>OPS TERMINAL // INTERNAL USE ONLY // 2FA REQUIRED</span>
+            <span>LAST SYNC 20:14:12 UTC+8</span>
+        </footer>
+    </div>
+
+    <!-- Order Confirmation Modal -->
+    <div id="orderModal" class="hidden fixed inset-0 z-50 items-center justify-center">
+        <div class="absolute inset-0 modal-backdrop"></div>
+        <div class="relative bg-ops-card border border-slate-700 rounded-lg p-6 w-[420px] font-mono">
+            <div class="text-xs text-ops-muted uppercase">Order Preview</div>
+            <div class="text-sm mt-3 space-y-1">
+                <div>Side: <span id="modalSide" class="text-ops-primary">BUY</span></div>
+                <div>Symbol: <span id="modalSymbol">TSLA</span></div>
+                <div>Qty: <span id="modalQty">14.532</span> Shares (Fractional)</div>
+                <div>Take Profit: @ <span id="modalTakeProfit">$280.00</span> (GTC)</div>
+                <div>Stop Loss: @ <span id="modalStopLoss">$240.00</span> (GTC)</div>
+                <div class="pt-2">Est. Total: <span id="modalEstTotal">$3,800.00</span></div>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-3 text-sm">
+                <button id="cancelOrderBtn" class="border border-slate-700 text-ops-text py-2 rounded-md">CANCEL</button>
+                <button id="confirmOrderBtn" class="bg-ops-accent text-white py-2 rounded-md">EXECUTE STRATEGY</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/terminal.js"></script>
+</body>
+</html>
