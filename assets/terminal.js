@@ -207,6 +207,7 @@ const elements = {
     latencyValue: getEl('latencyValue'),
     buyingPowerMini: getEl('buyingPowerMini'),
     lastSync: getEl('lastSync'),
+    apiBaseLabel: getEl('apiBaseLabel'),
     mobileAum: getEl('mobileAum'),
     mobilePnl: getEl('mobilePnl'),
     mobileRisk: getEl('mobileRisk'),
@@ -278,9 +279,10 @@ const renderMarketTable = () => {
                     : 'text-ops-muted';
         const volClass = item.volMa > 2.5 ? 'text-ops-danger' : '';
         const flashClass = item.flashUntil > Date.now() ? 'animate-row-flash' : '';
+        const sectorTag = item.sector ? ` <span class="text-ops-muted text-xs">(${item.sector})</span>` : '';
         return `
             <tr data-symbol="${item.symbol}" class="${flashClass}">
-                <td class="px-4 py-3 text-ops-primary">${item.symbol}</td>
+                <td class="px-4 py-3 text-ops-primary">${item.symbol}${sectorTag}</td>
                 <td class="px-4 py-3 text-right">$${toFixed(item.last, 2)}</td>
                 <td class="px-4 py-3 text-right ${chgClass}">${formatPercent(item.chgPct)}</td>
                 <td class="px-4 py-3 text-center ${signalClass}">${item.signal}</td>
@@ -367,6 +369,12 @@ const updateLastSync = () => {
     const now = new Date();
     const time = now.toLocaleTimeString('en-US', { hour12: false });
     elements.lastSync.textContent = `LAST SYNC ${time} LOCAL`;
+};
+
+const updateApiBaseLabel = () => {
+    if (!elements.apiBaseLabel) return;
+    const base = API_BASE || 'LOCAL';
+    elements.apiBaseLabel.textContent = `API: ${base}`;
 };
 
 const syncOrderPreview = () => {
@@ -801,6 +809,7 @@ setPdtLock();
 syncOrderPreview();
 updateLastSync();
 updatePortfolioHistory(data.history);
+updateApiBaseLabel();
 
 loadRemoteData().then(() => {
     updateConnectivity();

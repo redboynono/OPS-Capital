@@ -41,5 +41,6 @@ uvicorn main:app --reload --port 8000
 - `GET /api/assets/{symbol}`
 - `POST /api/orders`
 - `WS /ws/market`
+- `WS /ws/eye`
 
 前端会优先读取 `/api/*`，失败则回退到本地 mock 数据。

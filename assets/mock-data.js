@@ -16,13 +16,14 @@ window.OPS_MOCK_DATA = {
         dayTradesRemaining: 1
     },
     market: [
-        { symbol: 'NVDA', last: 902.14, chgPct: 3.42, score: 92, volMa: 4.8, signal: 'STRONG BUY', asset: 'Equity' },
-        { symbol: 'AAPL', last: 192.38, chgPct: 0.82, score: 71, volMa: 1.2, signal: 'WAIT', asset: 'Equity' },
-        { symbol: 'BTC/USD', last: 64218.0, chgPct: 1.18, score: 69, volMa: 2.2, signal: 'WAIT', asset: 'Crypto' },
-        { symbol: 'TSLA', last: 238.09, chgPct: -2.14, score: 39, volMa: 3.1, signal: 'SELL', asset: 'Equity' },
-        { symbol: 'MSFT', last: 402.01, chgPct: 1.06, score: 66, volMa: 0.9, signal: 'WAIT', asset: 'Equity' },
-        { symbol: 'AMD', last: 168.44, chgPct: 2.41, score: 84, volMa: 1.7, signal: 'BUY', asset: 'Equity' },
-        { symbol: 'META', last: 488.61, chgPct: -0.74, score: 58, volMa: 1.0, signal: 'WAIT', asset: 'Equity' }
+        { symbol: 'NVDA', last: 902.14, chgPct: 3.42, score: 92, volMa: 4.8, signal: 'STRONG BUY', asset: 'Equity', sector: 'Semis', volume: 38120000 },
+        { symbol: 'AAPL', last: 192.38, chgPct: 0.82, score: 71, volMa: 1.2, signal: 'WAIT', asset: 'Equity', sector: 'Mega Cap', volume: 71200000 },
+        { symbol: 'BTC/USD', last: 64218.0, chgPct: 1.18, score: 69, volMa: 2.2, signal: 'WAIT', asset: 'Crypto', sector: 'Crypto', volume: 12500 },
+        { symbol: 'TSLA', last: 238.09, chgPct: -2.14, score: 39, volMa: 3.1, signal: 'SELL', asset: 'Equity', sector: 'Auto', volume: 46800000 },
+        { symbol: 'MSFT', last: 402.01, chgPct: 1.06, score: 66, volMa: 0.9, signal: 'WAIT', asset: 'Equity', sector: 'Mega Cap', volume: 30100000 },
+        { symbol: 'AMD', last: 168.44, chgPct: 2.41, score: 84, volMa: 1.7, signal: 'BUY', asset: 'Equity', sector: 'Semis', volume: 51200000 },
+        { symbol: 'META', last: 488.61, chgPct: -0.74, score: 58, volMa: 1.0, signal: 'WAIT', asset: 'Equity', sector: 'Mega Cap', volume: 20900000 },
+        { symbol: 'COIN', last: 224.2, chgPct: 1.74, score: 76, volMa: 1.5, signal: 'WAIT', asset: 'Equity', sector: 'Crypto Proxy', volume: 18200000 }
     ],
     positions: [
         { symbol: 'NVDA', cost: 842.1, last: 902.14, pnlPct: 7.1, stop: 860.0 },

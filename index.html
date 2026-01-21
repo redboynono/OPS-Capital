@@ -94,7 +94,7 @@
                     <div class="w-9 h-9 bg-ops-primary text-ops-bg rounded-sm flex items-center justify-center font-mono font-bold">OPS</div>
                     <div>
                         <div class="text-lg font-semibold tracking-widest">OPS TERMINAL</div>
-                        <div class="text-xs text-ops-muted font-mono">DARK FOREST // KEYBOARD FIRST</div>
+                    <div class="text-xs text-ops-muted font-mono">DARK FOREST // KEYBOARD FIRST</div>
                     </div>
                 </div>
                 <div class="flex items-center gap-6 text-xs font-mono text-ops-muted">
@@ -104,6 +104,7 @@
                     <div>DATA FEED: <span id="dataFeedStatus" class="text-ops-primary">CONNECTED (24ms)</span></div>
                     <div>BROKER: <span class="text-ops-primary">IBKR API OK</span></div>
                     <div>ALGO: <span id="algoStatus" class="text-amber-400">3 ACTIVE / 1 PAUSED</span></div>
+                    <a href="eye.html" class="text-ops-accent hover:text-ops-primary transition">HOLOGRAPHIC EYE</a>
                 </div>
             </div>
             <div class="mt-4 grid grid-cols-12 gap-4">
@@ -370,7 +371,10 @@
 
         <footer class="market-dim px-6 py-3 border-t border-slate-800 text-xs text-ops-muted font-mono flex items-center justify-between">
             <span>OPS TERMINAL // INTERNAL USE ONLY // 2FA REQUIRED</span>
-            <span id="lastSync">LAST SYNC 20:14:12 UTC+8</span>
+            <span class="flex items-center gap-4">
+                <span id="apiBaseLabel">API: LOCAL</span>
+                <span id="lastSync">LAST SYNC 20:14:12 UTC+8</span>
+            </span>
         </footer>
     </div>
 
@@ -402,6 +406,7 @@
     </div>
 
     <script src="assets/mock-data.js"></script>
+    <script src="assets/runtime-config.js"></script>
     <script src="assets/terminal.js"></script>
 </body>
 </html>

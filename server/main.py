@@ -48,13 +48,14 @@ class MockStore:
         "dayTradesRemaining": 1,
     }
     market = [
-        {"symbol": "NVDA", "last": 902.14, "chgPct": 3.42, "score": 92, "volMa": 4.8, "signal": "STRONG BUY", "asset": "Equity"},
-        {"symbol": "AAPL", "last": 192.38, "chgPct": 0.82, "score": 71, "volMa": 1.2, "signal": "WAIT", "asset": "Equity"},
-        {"symbol": "BTC/USD", "last": 64218.0, "chgPct": 1.18, "score": 69, "volMa": 2.2, "signal": "WAIT", "asset": "Crypto"},
-        {"symbol": "TSLA", "last": 238.09, "chgPct": -2.14, "score": 39, "volMa": 3.1, "signal": "SELL", "asset": "Equity"},
-        {"symbol": "MSFT", "last": 402.01, "chgPct": 1.06, "score": 66, "volMa": 0.9, "signal": "WAIT", "asset": "Equity"},
-        {"symbol": "AMD", "last": 168.44, "chgPct": 2.41, "score": 84, "volMa": 1.7, "signal": "BUY", "asset": "Equity"},
-        {"symbol": "META", "last": 488.61, "chgPct": -0.74, "score": 58, "volMa": 1.0, "signal": "WAIT", "asset": "Equity"},
+        {"symbol": "NVDA", "last": 902.14, "chgPct": 3.42, "score": 92, "volMa": 4.8, "signal": "STRONG BUY", "asset": "Equity", "sector": "Semis", "volume": 38120000},
+        {"symbol": "AAPL", "last": 192.38, "chgPct": 0.82, "score": 71, "volMa": 1.2, "signal": "WAIT", "asset": "Equity", "sector": "Mega Cap", "volume": 71200000},
+        {"symbol": "BTC/USD", "last": 64218.0, "chgPct": 1.18, "score": 69, "volMa": 2.2, "signal": "WAIT", "asset": "Crypto", "sector": "Crypto", "volume": 12500},
+        {"symbol": "TSLA", "last": 238.09, "chgPct": -2.14, "score": 39, "volMa": 3.1, "signal": "SELL", "asset": "Equity", "sector": "Auto", "volume": 46800000},
+        {"symbol": "MSFT", "last": 402.01, "chgPct": 1.06, "score": 66, "volMa": 0.9, "signal": "WAIT", "asset": "Equity", "sector": "Mega Cap", "volume": 30100000},
+        {"symbol": "AMD", "last": 168.44, "chgPct": 2.41, "score": 84, "volMa": 1.7, "signal": "BUY", "asset": "Equity", "sector": "Semis", "volume": 51200000},
+        {"symbol": "META", "last": 488.61, "chgPct": -0.74, "score": 58, "volMa": 1.0, "signal": "WAIT", "asset": "Equity", "sector": "Mega Cap", "volume": 20900000},
+        {"symbol": "COIN", "last": 224.2, "chgPct": 1.74, "score": 76, "volMa": 1.5, "signal": "WAIT", "asset": "Equity", "sector": "Crypto Proxy", "volume": 18200000},
     ]
     positions = [
         {"symbol": "NVDA", "cost": 842.1, "last": 902.14, "pnlPct": 7.1, "stop": 860.0},
@@ -330,6 +331,147 @@ async def market_stream(websocket: WebSocket):
                     pipe_alpaca(
                         f"wss://stream.data.alpaca.markets/v2/{ALPACA_FEED}",
                         {"action": "subscribe", "trades": equity_symbols},
+                    )
+                )
+            )
+        if crypto_symbols:
+            tasks.append(
+                asyncio.create_task(
+                    pipe_alpaca(
+                        "wss://stream.data.alpaca.markets/v1beta3/crypto/us",
+                        {"action": "subscribe", "trades": crypto_symbols},
+                    )
+                )
+            )
+        await asyncio.gather(*tasks)
+    except Exception:
+        await websocket.close()
+    finally:
+        for task in tasks:
+            task.cancel()
+
+
+@app.websocket("/ws/eye")
+async def eye_stream(websocket: WebSocket):
+    await websocket.accept()
+    if not (ALPACA_API_KEY and ALPACA_SECRET_KEY):
+        await websocket.send_json({"type": "error", "message": "ALPACA_KEYS_MISSING"})
+        await websocket.close()
+        return
+
+    symbols = [item["symbol"] for item in MockStore.market]
+    equity_symbols = [symbol for symbol in symbols if "/" not in symbol]
+    crypto_symbols = [symbol for symbol in symbols if "/" in symbol]
+
+    last_prices = {item["symbol"]: item["last"] for item in MockStore.market}
+    last_trade_ts: dict[str, float] = {}
+    rolling_prices: dict[str, List[tuple[float, float]]] = {}
+    ewma_size: dict[str, float] = {}
+
+    def update_price_window(symbol: str, ts: float, price: float) -> Optional[float]:
+        window = rolling_prices.setdefault(symbol, [])
+        window.append((ts, price))
+        cutoff = ts - 60.0
+        while window and window[0][0] < cutoff:
+            window.pop(0)
+        if len(window) < 2:
+            return None
+        start_price = window[0][1]
+        return 0.0 if start_price == 0 else (price - start_price) / start_price * 100
+
+    async def emit_anomaly(kind: str, symbol: str, detail: str, price: float):
+        await websocket.send_json(
+            {
+                "type": "anomaly",
+                "symbol": symbol,
+                "kind": kind,
+                "detail": detail,
+                "price": price,
+            }
+        )
+
+    async def handle_trade(symbol: str, price: float, size: float, ts: float, side: Optional[str] = None):
+        last_prices[symbol] = price
+        gap = ts - last_trade_ts.get(symbol, ts)
+        last_trade_ts[symbol] = ts
+
+        change_pct = update_price_window(symbol, ts, price)
+        avg_size = ewma_size.get(symbol, size)
+        ewma_size[symbol] = avg_size * 0.92 + size * 0.08
+        notional = price * size
+
+        if gap > 120:
+            await emit_anomaly("HALT_RESUME", symbol, "Halt Resume", price)
+        if notional > 1_000_000:
+            await emit_anomaly("WHALE_ALERT", symbol, f"Whale {notional:,.0f}", price)
+        if avg_size and size > avg_size * 5:
+            await emit_anomaly("VOL_SPIKE", symbol, f"Vol Spike {size:.0f}", price)
+        if change_pct is not None and abs(change_pct) >= 2:
+            label = "FLASH_SPIKE" if change_pct > 0 else "FLASH_CRASH"
+            await emit_anomaly(label, symbol, f"{change_pct:+.2f}%", price)
+
+        await websocket.send_json(
+            {
+                "type": "trade",
+                "symbol": symbol,
+                "price": price,
+                "size": size,
+                "ts": ts,
+                "side": side,
+            }
+        )
+
+    async def handle_quote(symbol: str, bid: float, ask: float, bid_size: float, ask_size: float):
+        total = bid_size + ask_size
+        imbalance = 0.0 if total == 0 else bid_size / total
+        await websocket.send_json(
+            {
+                "type": "quote",
+                "symbol": symbol,
+                "bid": bid,
+                "ask": ask,
+                "bidSize": bid_size,
+                "askSize": ask_size,
+                "imbalance": imbalance,
+            }
+        )
+
+    async def pipe_alpaca(url: str, subscribe_payload: dict):
+        auth_payload = {"action": "auth", "key": ALPACA_API_KEY, "secret": ALPACA_SECRET_KEY}
+        async with websockets.connect(url, ping_interval=20, ping_timeout=20) as alpaca_ws:
+            await alpaca_ws.send(json.dumps(auth_payload))
+            await alpaca_ws.send(json.dumps(subscribe_payload))
+            async for message in alpaca_ws:
+                payload = json.loads(message)
+                items = payload if isinstance(payload, list) else [payload]
+                for item in items:
+                    symbol = item.get("S") or item.get("symbol")
+                    if not symbol:
+                        continue
+                    msg_type = item.get("T") or item.get("type")
+                    if msg_type in ("t", "trade", "T"):
+                        price = item.get("p") or item.get("price")
+                        size = item.get("s") or item.get("size")
+                        ts = item.get("t") or item.get("timestamp") or datetime.now(timezone.utc).timestamp()
+                        side = item.get("tks") or item.get("side")
+                        if price is not None and size is not None:
+                            await handle_trade(symbol, float(price), float(size), float(ts), side)
+                    if msg_type in ("q", "quote", "Q"):
+                        bid = item.get("bp") or item.get("bid")
+                        ask = item.get("ap") or item.get("ask")
+                        bid_size = item.get("bs") or item.get("bid_size") or 0
+                        ask_size = item.get("as") or item.get("ask_size") or 0
+                        if bid is not None and ask is not None:
+                            await handle_quote(symbol, float(bid), float(ask), float(bid_size), float(ask_size))
+
+    tasks = []
+    try:
+        if equity_symbols:
+            tasks.append(
+                asyncio.create_task(
+                    pipe_alpaca(
+                        f"wss://stream.data.alpaca.markets/v2/{ALPACA_FEED}",
+                        {"action": "subscribe", "trades": equity_symbols, "quotes": equity_symbols},
                     )
                 )
             )
