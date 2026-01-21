@@ -174,6 +174,14 @@ async def market() -> List[dict]:
 
     result: List[dict] = []
     try:
+        equity_snapshots = {}
+        if equity_symbols:
+            snapshots_payload = await alpaca_data_get(
+                "/v2/stocks/snapshots",
+                params={"symbols": ",".join(equity_symbols), "feed": ALPACA_FEED},
+            )
+            equity_snapshots = snapshots_payload or {}
+
         if equity_symbols:
             trades_payload = await alpaca_data_get(
                 "/v2/stocks/trades/latest",
@@ -183,11 +191,12 @@ async def market() -> List[dict]:
             for symbol in equity_symbols:
                 base = dict(base_map[symbol])
                 trade = trades.get(symbol)
-                if trade and trade.get("p"):
-                    last = float(trade["p"])
-                    base_last = float(base["last"])
-                    base["last"] = last
-                    base["chgPct"] = ((last - base_last) / base_last) * 100
+                snapshot = equity_snapshots.get(symbol, {})
+                last = float(trade["p"]) if trade and trade.get("p") else base["last"]
+                prev = snapshot.get("prevDailyBar", {}).get("c")
+                base["last"] = last
+                if prev:
+                    base["chgPct"] = ((last - float(prev)) / float(prev)) * 100
                 result.append(base)
 
         if crypto_symbols:
@@ -195,15 +204,21 @@ async def market() -> List[dict]:
                 "/v1beta3/crypto/us/latest/trades",
                 params={"symbols": ",".join(crypto_symbols)},
             )
+            bars_payload = await alpaca_data_get(
+                "/v1beta3/crypto/us/bars",
+                params={"symbols": ",".join(crypto_symbols), "timeframe": "1Day", "limit": 2},
+            )
             trades = (crypto_payload or {}).get("trades", {})
+            bars = (bars_payload or {}).get("bars", {})
             for symbol in crypto_symbols:
                 base = dict(base_map[symbol])
                 trade = trades.get(symbol)
-                if trade and trade.get("p"):
-                    last = float(trade["p"])
-                    base_last = float(base["last"])
-                    base["last"] = last
-                    base["chgPct"] = ((last - base_last) / base_last) * 100
+                last = float(trade["p"]) if trade and trade.get("p") else base["last"]
+                prev_bar = (bars.get(symbol) or [{}])[0]
+                prev_close = prev_bar.get("c") or base["last"]
+                base["last"] = last
+                if prev_close:
+                    base["chgPct"] = ((last - float(prev_close)) / float(prev_close)) * 100
                 result.append(base)
 
         return result or MockStore.market
