@@ -49,7 +49,8 @@ const state = {
         FLASH_SPIKE: true,
         FLASH_CRASH: true,
         HALT_RESUME: true
-    }
+    },
+    lastSnapshot: 0
 };
 
 const formatPercent = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
@@ -300,6 +301,23 @@ const updateCorrelation = () => {
     }
 };
 
+const loadMarketSnapshot = async () => {
+    const url = `${API_BASE}/api/market`;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return;
+        const snapshot = await response.json();
+        if (!Array.isArray(snapshot) || !snapshot.length) return;
+        state.market = snapshot.map((item) => ({
+            ...item,
+            history: [item.last]
+        }));
+        state.lastSnapshot = Date.now();
+    } catch (error) {
+        // ignore snapshot failures
+    }
+};
+
 const handleTrade = (payload) => {
     const item = state.market.find((row) => row.symbol === payload.symbol);
     if (!item) return;
@@ -439,8 +457,11 @@ if (elements.apiLabel) {
     elements.apiLabel.textContent = `API: ${API_BASE || 'LOCAL'}`;
 }
 
+loadMarketSnapshot();
 connectEyeSocket();
 drawLoop();
+
+setInterval(loadMarketSnapshot, 30000);
 
 setInterval(() => {
     if (state.wsConnected) return;
