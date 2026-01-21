@@ -14,7 +14,7 @@
         return;
     }
 
-    const defaultBase = 'https://ops-capital-1.onrender.com';
+    const defaultBase = 'https://ops-capital-api.onrender.com';
     const host = window.location.hostname;
     if ((host === 'opscapital.com' || host === 'www.opscapital.com') && defaultBase) {
         window.OPS_API_BASE = defaultBase;
