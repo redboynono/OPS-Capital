@@ -27,7 +27,9 @@ const elements = {
     spreadValue: document.getElementById('spreadValue'),
     corrAlert: document.getElementById('corrAlert'),
     apiLabel: document.getElementById('eyeApiLabel'),
-    streamStatus: document.getElementById('eyeStreamStatus')
+    streamStatus: document.getElementById('eyeStreamStatus'),
+    sourceLabel: document.getElementById('eyeSourceLabel'),
+    lastTick: document.getElementById('eyeLastTick')
 };
 
 const state = {
@@ -50,7 +52,9 @@ const state = {
         FLASH_CRASH: true,
         HALT_RESUME: true
     },
-    lastSnapshot: 0
+    lastSnapshot: 0,
+    lastTick: null,
+    source: 'UNKNOWN'
 };
 
 const formatPercent = (value) => `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
@@ -313,6 +317,8 @@ const loadMarketSnapshot = async () => {
             history: [item.last]
         }));
         state.lastSnapshot = Date.now();
+        state.source = 'ALPACA SNAPSHOT';
+        if (elements.sourceLabel) elements.sourceLabel.textContent = `SOURCE: ${state.source}`;
     } catch (error) {
         // ignore snapshot failures
     }
@@ -328,6 +334,12 @@ const handleTrade = (payload) => {
     item.history = item.history.slice(-120);
     if (payload.side === 'B') state.tickUp += 1;
     if (payload.side === 'S') state.tickDown += 1;
+    state.lastTick = payload.ts ? new Date(payload.ts * 1000) : new Date();
+    state.source = 'ALPACA WS';
+    if (elements.sourceLabel) elements.sourceLabel.textContent = `SOURCE: ${state.source}`;
+    if (elements.lastTick) {
+        elements.lastTick.textContent = `LAST TICK: ${state.lastTick.toLocaleTimeString('en-US', { hour12: false })}`;
+    }
     if (payload.symbol === state.focus) {
         const series = item.history.slice(-80);
         const min = Math.min(...series);
@@ -456,6 +468,12 @@ elements.anomalyFilters?.forEach((button) => {
 if (elements.apiLabel) {
     elements.apiLabel.textContent = `API: ${API_BASE || 'LOCAL'}`;
 }
+if (elements.sourceLabel) {
+    elements.sourceLabel.textContent = `SOURCE: ${state.source}`;
+}
+if (elements.lastTick) {
+    elements.lastTick.textContent = 'LAST TICK: --';
+}
 
 loadMarketSnapshot();
 connectEyeSocket();
@@ -483,4 +501,5 @@ setInterval(() => {
             });
         }
     });
+    if (elements.sourceLabel) elements.sourceLabel.textContent = 'SOURCE: LOCAL SIM';
 }, 1200);
