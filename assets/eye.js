@@ -401,7 +401,9 @@ const connectEyeSocket = () => {
     if (elements.streamStatus) elements.streamStatus.textContent = 'WS: CONNECTING';
     socket.addEventListener('open', () => {
         state.wsConnected = true;
+        state.source = 'ALPACA WS (IDLE)';
         if (elements.streamStatus) elements.streamStatus.textContent = 'WS: LIVE';
+        if (elements.sourceLabel) elements.sourceLabel.textContent = `SOURCE: ${state.source}`;
     });
     socket.addEventListener('message', (event) => {
         const payload = JSON.parse(event.data);
@@ -482,7 +484,7 @@ drawLoop();
 setInterval(loadMarketSnapshot, 30000);
 
 setInterval(() => {
-    if (state.wsConnected) return;
+    if (API_BASE || state.wsConnected) return;
     state.market.forEach((item) => {
         const drift = item.asset === 'Crypto' ? 0.6 : 0.25;
         const delta = (Math.random() - 0.5) * drift;
