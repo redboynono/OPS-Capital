@@ -55,9 +55,19 @@
     <main class="relative z-10 h-[calc(100vh-72px)] grid grid-cols-12 gap-4 p-4">
         <!-- Left: Anomaly Stream -->
         <section class="col-span-3 bg-ops-card border border-slate-800 rounded-lg p-4 flex flex-col">
-            <div class="text-xs text-ops-muted font-mono uppercase">Alpha Stream</div>
+            <div class="flex items-center justify-between">
+                <div class="text-xs text-ops-muted font-mono uppercase">Alpha Stream</div>
+                <div class="text-[10px] text-ops-muted font-mono">TOP 5% FILTER</div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2 text-[10px] font-mono">
+                <button data-filter="WHALE_ALERT" class="eye-filter text-amber-300 border border-slate-700 px-2 py-1 rounded">WHALE</button>
+                <button data-filter="VOL_SPIKE" class="eye-filter text-ops-primary border border-slate-700 px-2 py-1 rounded">VOL</button>
+                <button data-filter="FLASH_SPIKE" class="eye-filter text-ops-accent border border-slate-700 px-2 py-1 rounded">SPIKE</button>
+                <button data-filter="FLASH_CRASH" class="eye-filter text-ops-danger border border-slate-700 px-2 py-1 rounded">CRASH</button>
+                <button data-filter="HALT_RESUME" class="eye-filter text-ops-muted border border-slate-700 px-2 py-1 rounded">HALT</button>
+            </div>
             <div id="anomalyStream" class="mt-3 flex-1 overflow-auto text-xs font-mono space-y-2"></div>
-            <div class="mt-3 text-[10px] text-ops-muted font-mono">TOP 5% ANOMALY FILTER</div>
+            <div class="mt-3 text-[10px] text-ops-muted font-mono">ALERTS: <span id="anomalyCount">0</span></div>
         </section>
 
         <!-- Center: Focus View -->
@@ -77,6 +87,15 @@
                     <span id="focusSignal">SIGNAL: --</span>
                     <span id="focusCorr">CORR: --</span>
                 </div>
+                <div class="mt-3 grid grid-cols-3 gap-3 text-xs font-mono text-ops-muted">
+                    <div>BID: <span id="focusBid" class="text-ops-primary">--</span></div>
+                    <div>ASK: <span id="focusAsk" class="text-ops-primary">--</span></div>
+                    <div>SPREAD: <span id="focusSpread" class="text-ops-muted">--</span></div>
+                </div>
+                <div class="mt-2 h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div id="imbalanceBar" class="h-full bg-ops-primary w-1/2"></div>
+                </div>
+                <div class="mt-1 text-[10px] text-ops-muted font-mono">IMBALANCE: <span id="imbalanceValue">--</span></div>
             </div>
             <div class="bg-ops-card border border-slate-800 rounded-lg p-4 flex-1">
                 <div class="flex items-center justify-between">
@@ -92,12 +111,22 @@
             <div class="bg-ops-card border border-slate-800 rounded-lg p-4">
                 <div class="text-xs text-ops-muted font-mono uppercase">Liquid Heatmap</div>
                 <canvas id="heatmapCanvas" height="160" class="mt-3 w-full"></canvas>
-                <div class="mt-2 text-xs font-mono text-ops-muted">Zoom: scroll | Sector: click tile</div>
+                <div class="mt-2 text-xs font-mono text-ops-muted">Zoom: scroll | Sector: <span id="heatmapSector">ALL</span></div>
             </div>
             <div class="bg-ops-card border border-slate-800 rounded-lg p-4">
                 <div class="text-xs text-ops-muted font-mono uppercase">Bull/Bear Power</div>
                 <canvas id="powerMeter" height="120" class="mt-3 w-full"></canvas>
                 <div class="mt-2 text-xs font-mono text-ops-muted">UP vs DOWN &amp; TICK</div>
+            </div>
+            <div class="bg-ops-card border border-slate-800 rounded-lg p-4">
+                <div class="text-xs text-ops-muted font-mono uppercase">Correlation Monitor</div>
+                <div class="mt-2 text-xs font-mono text-ops-muted">PAIR: BTC/USD vs COIN</div>
+                <div class="mt-2 text-xs font-mono">
+                    <span id="corrValue" class="text-ops-primary">--</span>
+                    <span class="text-ops-muted"> | SPREAD </span>
+                    <span id="spreadValue" class="text-ops-muted">--</span>
+                </div>
+                <div id="corrAlert" class="mt-2 text-[10px] font-mono text-ops-muted">STATUS: NORMAL</div>
             </div>
             <div class="bg-ops-card border border-slate-800 rounded-lg p-4 flex-1">
                 <div class="text-xs text-ops-muted font-mono uppercase">Level 1 + Mini Charts</div>
@@ -105,9 +134,6 @@
             </div>
         </section>
     </main>
-
-    <audio id="whaleAudio" src="assets/sounds/sonar.mp3" preload="auto"></audio>
-    <audio id="haltAudio" src="assets/sounds/buzz.mp3" preload="auto"></audio>
 
     <script src="assets/mock-data.js"></script>
     <script src="assets/runtime-config.js"></script>
